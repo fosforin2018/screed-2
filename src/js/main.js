@@ -169,6 +169,7 @@ async function requestStoragePermission() {
 }
 
 async function savePDFToDocuments(blob, fileName) {
+alert('savePDFToDocuments вызвана, fileName=' + fileName);
     if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform()) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
