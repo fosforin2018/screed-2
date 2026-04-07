@@ -1,23 +1,25 @@
 {
   "name": "screed-2",
   "version": "1.0.0",
-  "description": "",
+  "description": "Стяжка Pro — калькулятор стяжки пола",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "vite": "^8.0.7"
+    "vite": "^5.0.0"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.0",
-    "@capacitor/cli": "^8.3.0",
-    "@capacitor/core": "^8.3.0",
-    "@capacitor/filesystem": "^8.1.2",
-    "@capacitor/share": "^8.0.1"
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/share": "^6.0.4"
   }
 }
