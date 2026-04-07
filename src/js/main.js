@@ -1,5 +1,4 @@
-# затем вставьте мой полный код из предыдущего сообщения
-# после вставки нажмите Enter, затем Ctrl+D
+
 import "../css/style.css";
 
 if (typeof html2pdf === 'undefined') document.body.innerHTML = '<div style="padding:40px;text-align:center;color:red">⚠️ Не удалось загрузить библиотеку PDF. Проверьте интернет.</div>';
