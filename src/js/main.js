@@ -5,68 +5,6 @@ let rooms = [], editingId = null, roomUid = 0, currentCalc = null;
 let corrections = { globalMm: 3, perRoomMm: 0, enabled: true };
 let pdfData = { blob: null, name: '', pendingAction: null };
 
-// --- IndexedDB для хранения PDF ---
-let dbPromise = null;
-function openDB() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open('ScreedPDFDB', 1);
-        request.onupgradeneeded = (e) => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains('pdfs')) {
-                const store = db.createObjectStore('pdfs', { keyPath: 'id', autoIncrement: true });
-                store.createIndex('byDate', 'date');
-            }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-    return dbPromise;
-}
-
-async function savePDFToIndexedDB(blob, metadata) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['pdfs'], 'readwrite');
-        const store = transaction.objectStore('pdfs');
-        const record = {
-            id: Date.now(),
-            name: metadata.name,
-            blob: blob,
-            date: metadata.date,
-            address: metadata.address,
-            client: metadata.client,
-            size: blob.size
-        };
-        const request = store.add(record);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function getAllPDFs() {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['pdfs'], 'readonly');
-        const store = transaction.objectStore('pdfs');
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function deletePDFFromDB(id) {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['pdfs'], 'readwrite');
-        const store = transaction.objectStore('pdfs');
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// --- Остальной код приложения (без изменений, кроме функций PDF) ---
 document.addEventListener('DOMContentLoaded', () => { 
   loadSettings(); loadTheme();
   document.getElementById('measDate').value = new Date().toISOString().split('T')[0];
@@ -189,22 +127,6 @@ async function preparePDFData(tplId,contId,baseName,id=null){
 
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
-    // Сначала спрашиваем, сохранить ли в базу приложения
-    const saveToDB = confirm('Сохранить этот PDF во внутреннюю библиотеку приложения? (будет доступен во вкладке "Файлы")');
-    if (saveToDB) {
-        const m = currentCalc?.m || (()=>{ const addr = document.getElementById('addressInput').value; const client = document.getElementById('clientName').value; return { address: addr, client: client }; })();
-        const metadata = {
-            name: pdfData.name,
-            date: new Date().toISOString(),
-            address: m?.address || 'Не указан',
-            client: m?.client || ''
-        };
-        try {
-            await savePDFToIndexedDB(pdfData.blob, metadata);
-            showToast('✅ PDF сохранён в библиотеку');
-        } catch(e) { console.error(e); showToast('⚠️ Не удалось сохранить в библиотеку'); }
-    }
-    // Затем предлагаем поделиться или скачать
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -226,71 +148,16 @@ async function startPDF(action) {
     closeModal();
 }
 
-// --- Функции для вкладки "Файлы" ---
+// Функция для вкладки "Файлы" (если нужна, но можно оставить заглушку)
 async function renderFilesList() {
     const container = document.getElementById('filesList');
-    if (!container) return;
-    const pdfs = await getAllPDFs();
-    if (pdfs.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📁</div><p>Нет сохранённых PDF-файлов</p></div>';
-        return;
-    }
-    container.innerHTML = pdfs.map(pdf => `
-        <div class="saved-item" data-id="${pdf.id}">
-            <div class="saved-address">📄 ${pdf.name}</div>
-            <div class="saved-client">📍 ${pdf.address} | 👤 ${pdf.client || '—'}</div>
-            <div class="saved-meta">📅 ${new Date(pdf.date).toLocaleString()} | ${(pdf.size/1024).toFixed(1)} КБ</div>
-            <div class="saved-actions">
-                <button class="btn-edit" onclick="sharePDFById(${pdf.id})">📤 Отправить</button>
-                <button class="btn-pdf-m" onclick="downloadPDFById(${pdf.id})">💾 Скачать</button>
-                <button class="btn-del" onclick="deletePDFById(${pdf.id})">🗑 Удалить</button>
-            </div>
-        </div>
-    `).join('');
-}
-
-async function sharePDFById(id) {
-    const pdfs = await getAllPDFs();
-    const pdf = pdfs.find(p => p.id === id);
-    if (!pdf) return;
-    const file = new File([pdf.blob], pdf.name, { type: 'application/pdf' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-            await navigator.share({ files: [file], title: pdf.name });
-            showToast('📤 PDF отправлен');
-        } catch(e) { showToast('Отмена'); }
-    } else {
-        downloadPDFById(id);
-    }
-}
-
-async function downloadPDFById(id) {
-    const pdfs = await getAllPDFs();
-    const pdf = pdfs.find(p => p.id === id);
-    if (!pdf) return;
-    const url = URL.createObjectURL(pdf.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = pdf.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('✅ PDF скачан');
-}
-
-async function deletePDFById(id) {
-    if (confirm('Удалить этот PDF?')) {
-        await deletePDFFromDB(id);
-        renderFilesList();
-        showToast('🗑 Удалено');
-    }
+    if (container) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📁</div><p>Функция временно недоступна</p></div>';
 }
 
 function getSettings(){const g=id=>parseFloat(document.getElementById(id).value)||0;const t=id=>document.getElementById(id)?.value||'';return{sandBagW:g('sandBagW'),sandPrice:g('sandPrice'),cementBagW:g('cementBagW'),cementPrice:g('cementPrice'),ratio:g('ratio')||3,mixDensity:g('mixDensity')||20,truckCap:g('truckCap')||5,deliveryPrice:g('deliveryPrice')||4000,liftPrice:g('liftPrice')||800,fiberG:g('fiberG')||50,fiberPrice:g('fiberPrice')||450,filmPrice:g('filmPrice')||25,meshPrice:g('meshPrice')||80,laborPrice:g('laborPrice')||450,logoUrl:t('logoUrl'),masterName:t('masterName')};}
 function saveSettings(){['sandBagW','sandPrice','cementBagW','cementPrice','ratio','mixDensity','truckCap','deliveryPrice','liftPrice','fiberG','fiberPrice','filmPrice','meshPrice','laborPrice'].forEach(id=>localStorage.setItem(id,document.getElementById(id).value));localStorage.setItem('logoUrl',document.getElementById('logoUrl').value);localStorage.setItem('masterName',document.getElementById('masterName').value);}
 function loadSettings(){['sandBagW','sandPrice','cementBagW','cementPrice','ratio','mixDensity','truckCap','deliveryPrice','liftPrice','fiberG','fiberPrice','filmPrice','meshPrice','laborPrice'].forEach(id=>{if(localStorage.getItem(id))document.getElementById(id).value=localStorage.getItem(id);});if(localStorage.getItem('logoUrl'))document.getElementById('logoUrl').value=localStorage.getItem('logoUrl');if(localStorage.getItem('masterName'))document.getElementById('masterName').value=localStorage.getItem('masterName');}
-function clearAllData(){if(!confirm('Удалить ВСЕ данные?'))return;localStorage.clear();indexedDB.deleteDatabase('ScreedPDFDB');location.reload();}
+function clearAllData(){if(!confirm('Удалить ВСЕ данные?'))return;localStorage.clear();location.reload();}
 function exportData(){const d={v:'7.1',date:new Date().toISOString(),measurements:getDB(),settings:getSettings()};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`ScreedBackup_${new Date().toISOString().split('T')[0]}.json`;a.click();showToast('📤 Экспорт готов');}
 function importData(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.measurements)localStorage.setItem('screed_final',JSON.stringify(d.measurements));if(d.settings){Object.keys(d.settings).forEach(k=>{if(document.getElementById(k))document.getElementById(k).value=d.settings[k]});saveSettings();}renderHistory();filterForCost();showToast('📥 Импорт успешен');}catch(err){showToast('⚠️ Ошибка файла');}};r.readAsText(f);inp.value='';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2500);}
@@ -319,6 +186,3 @@ window.importData = importData;
 window.clearAllData = clearAllData;
 window.showToast = showToast;
 window.renderFilesList = renderFilesList;
-window.sharePDFById = sharePDFById;
-window.downloadPDFById = downloadPDFById;
-window.deletePDFById = deletePDFById;
