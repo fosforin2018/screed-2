@@ -1,3 +1,4 @@
+import "../css/style.css";
 if (typeof html2pdf === 'undefined') document.body.innerHTML = '<div style="padding:40px;text-align:center;color:red">⚠️ Не удалось загрузить библиотеку PDF. Проверьте интернет.</div>';
 let rooms = [], editingId = null, roomUid = 0, currentCalc = null;
 let corrections = { globalMm: 3, perRoomMm: 0, enabled: true };
@@ -256,3 +257,28 @@ function clearAllData(){if(!confirm('Удалить ВСЕ данные?'))retur
 function exportData(){const d={v:'7.1',date:new Date().toISOString(),measurements:getDB(),settings:getSettings()};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`ScreedBackup_${new Date().toISOString().split('T')[0]}.json`;a.click();showToast('📤 Экспорт готов');}
 function importData(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.measurements)localStorage.setItem('screed_final',JSON.stringify(d.measurements));if(d.settings){Object.keys(d.settings).forEach(k=>{if(document.getElementById(k))document.getElementById(k).value=d.settings[k]});saveSettings();}renderHistory();filterForCost();showToast('📥 Импорт успешен');}catch(err){showToast('⚠️ Ошибка файла');}};r.readAsText(f);inp.value='';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2500);}
+
+// Делаем функции доступными глобально для onclick в HTML
+window.addRoom = addRoom;
+window.removeRoom = removeRoom;
+window.updateRoom = updateRoom;
+window.toggleCorrection = toggleCorrection;
+window.applyCorrections = applyCorrections;
+window.saveMeasurement = saveMeasurement;
+window.clearForm = clearForm;
+window.loadMeasurement = loadMeasurement;
+window.deleteMeasurement = deleteMeasurement;
+window.switchTab = switchTab;
+window.filterForCost = filterForCost;
+window.calcFromArchive = calcFromArchive;
+window.showCostList = showCostList;
+window.calculateCost = calculateCost;
+window.closeModal = closeModal;
+window.showMeasPDFModal = showMeasPDFModal;
+window.showCostPDFModal = showCostPDFModal;
+window.startPDF = startPDF;
+window.toggleTheme = toggleTheme;
+window.exportData = exportData;
+window.importData = importData;
+window.clearAllData = clearAllData;
+window.showToast = showToast;
