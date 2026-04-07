@@ -195,7 +195,7 @@ async function savePDFToDocuments(blob, fileName) {
         alert('6. Пытаемся создать папку Стяжка1 в Documents');
         await Filesystem.mkdir({
             path: 'Стяжка1',
-            directory: Directory.Documents,
+            directory: Directory.Data,
             recursive: true
         }).catch((e) => { alert('Ошибка создания папки: ' + e.message); throw e; });
         alert('7. Папка создана или уже существует');
@@ -204,7 +204,7 @@ async function savePDFToDocuments(blob, fileName) {
         await Filesystem.writeFile({
             path: `Стяжка1/${fileName}`,
             data: base64,
-            directory: Directory.Documents,
+            directory: Directory.Data,
             recursive: true
         });
         alert('9. Файл успешно записан');
