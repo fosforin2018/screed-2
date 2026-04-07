@@ -216,6 +216,7 @@ function blobToBase64(blob) {
 }
 
 async function startPDF(action) {
+alert('startPDF вызвана, action=' + action);
     if (!pdfData.blob) {
         showToast('⚠️ PDF ещё не готов');
         return;
