@@ -1,4 +1,7 @@
+# затем вставьте мой полный код из предыдущего сообщения
+# после вставки нажмите Enter, затем Ctrl+D
 import "../css/style.css";
+
 if (typeof html2pdf === 'undefined') document.body.innerHTML = '<div style="padding:40px;text-align:center;color:red">⚠️ Не удалось загрузить библиотеку PDF. Проверьте интернет.</div>';
 let rooms = [], editingId = null, roomUid = 0, currentCalc = null;
 let corrections = { globalMm: 3, perRoomMm: 0, enabled: true };
@@ -169,8 +172,9 @@ async function requestStoragePermission() {
 }
 
 async function savePDFToDocuments(blob, fileName) {
-alert('savePDFToDocuments вызвана, fileName=' + fileName);
+    alert('1. savePDFToDocuments начата');
     if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform()) {
+        alert('2. Capacitor не найден, используем fallback скачивание');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -181,27 +185,36 @@ alert('savePDFToDocuments вызвана, fileName=' + fileName);
         return true;
     }
     
+    alert('3. Capacitor есть, пытаемся сохранить');
     try {
         const { Filesystem, Directory } = Capacitor.Plugins;
-        const base64 = await blobToBase64(blob);
+        alert('4. Filesystem и Directory получены');
         
+        const base64 = await blobToBase64(blob);
+        alert('5. base64 получен, длина: ' + base64.length);
+        
+        alert('6. Пытаемся создать папку Стяжка1 в Documents');
         await Filesystem.mkdir({
             path: 'Стяжка1',
             directory: Directory.Documents,
             recursive: true
-        }).catch(() => {});
+        }).catch((e) => { alert('Ошибка создания папки: ' + e.message); throw e; });
+        alert('7. Папка создана или уже существует');
         
+        alert('8. Пытаемся записать файл: Стяжка1/' + fileName);
         await Filesystem.writeFile({
             path: `Стяжка1/${fileName}`,
             data: base64,
             directory: Directory.Documents,
             recursive: true
         });
+        alert('9. Файл успешно записан');
         
         showToast(`✅ PDF сохранён в Documents/Стяжка1/${fileName}`);
         return true;
     } catch (e) {
         console.error('Save error:', e);
+        alert('Ошибка сохранения: ' + e.message);
         showToast('⚠️ Не удалось сохранить: ' + e.message);
         return false;
     }
@@ -217,7 +230,7 @@ function blobToBase64(blob) {
 }
 
 async function startPDF(action) {
-alert('startPDF вызвана, action=' + action);
+    alert('startPDF вызвана, action=' + action);
     if (!pdfData.blob) {
         showToast('⚠️ PDF ещё не готов');
         return;
@@ -260,7 +273,7 @@ function exportData(){const d={v:'7.1',date:new Date().toISOString(),measurement
 function importData(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.measurements)localStorage.setItem('screed_final',JSON.stringify(d.measurements));if(d.settings){Object.keys(d.settings).forEach(k=>{if(document.getElementById(k))document.getElementById(k).value=d.settings[k]});saveSettings();}renderHistory();filterForCost();showToast('📥 Импорт успешен');}catch(err){showToast('⚠️ Ошибка файла');}};r.readAsText(f);inp.value='';}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2500);}
 
-// Делаем функции доступными глобально для onclick в HTML
+// Делаем функции глобальными для onclick в HTML
 window.addRoom = addRoom;
 window.removeRoom = removeRoom;
 window.updateRoom = updateRoom;
