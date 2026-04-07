@@ -158,42 +158,6 @@ async function preparePDFData(tplId,contId,baseName,id=null){
   }
 }
 
-async function savePDFToDocuments(blob, fileName) {
-    if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'application/pdf' });
-        if (navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({ files: [file], title: fileName });
-                showToast('📤 PDF отправлен');
-                return true;
-            } catch(e) { console.log(e); }
-        }
-    }
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-        try {
-            const { Filesystem, Directory } = Capacitor.Plugins;
-            const base64 = await blobToBase64(blob);
-            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
-            await Filesystem.writeFile({ path: `ScreedPDF/${fileName}`, data: base64, directory: Directory.Data, recursive: true });
-            showToast(`✅ PDF сохранён в папку приложения`);
-            return true;
-        } catch(e) { console.error(e); showToast('⚠️ Ошибка: ' + e.message); return false; }
-    }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url);
-    showToast('✅ PDF скачан');
-    return true;
-}
-
-function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-}
-
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
@@ -203,9 +167,17 @@ async function startPDF(action) {
             showToast('📤 PDF отправлен');
             closeModal();
             return;
-        } catch(e) { console.log(e); }
+        } catch(e) { console.log('Share cancelled:', e); }
     }
-    await savePDFToDocuments(pdfData.blob, pdfData.name);
+    const url = URL.createObjectURL(pdfData.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = pdfData.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✅ PDF скачан');
     closeModal();
 }
 
