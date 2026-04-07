@@ -38,7 +38,16 @@ window.calcFromArchive = function(id){switchTab('pageCost');document.getElementB
 function showCostList(){document.getElementById('costSearchBlock').style.display='block';document.getElementById('costList').style.display='block';document.getElementById('costResult').style.display='none';document.getElementById('searchCost').value='';filterForCost();}
 function filterForCost(){const q=document.getElementById('searchCost').value.toLowerCase();const db=getDB().filter(m=>(m.address||'').toLowerCase().includes(q)||(m.client||'').toLowerCase().includes(q)||(m.date||'').includes(q));const cont=document.getElementById('costList');if(q.length>0&&db.length===0){cont.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-secondary)">Ничего не найдено</div>';return;}cont.innerHTML=db.map(m=>`<div class="cost-item" id="ci-${m.id}" onclick="calcFromArchive('${m.id}')"><div style="font-weight:600">📍 ${m.address}</div><div style="font-size:12px;color:var(--text-secondary)">👤 ${m.client||'—'} • 📅 ${m.date||'—'} • ${m.totalArea.toFixed(1)} м²</div></div>`).join('');}
 
-function calculateCost(id){if(!id)return showToast('⚠️ Выберите замер');const m=getDB().find(x=>x.id===id);if(!m)return;const s=getSettings(),area=m.totalArea,layer=m.avgLayer;const mixKg=area*layer*s.mixDensity,sandKg=mixKg*(s.ratio/(s.ratio+1)),cemKg=mixKg*(1/(s.ratio+1));const sandB=Math.ceil(sandKg/s.sandBagW),cemB=Math.ceil(cemKg/s.cementBagW),sandC=sandB*s.sandPrice,cemC=cemB*s.cementPrice;const fibKg=(area*s.fiberG)/1000,fibC=fibKg*s.fiberPrice,filmC=area*s.filmPrice,meshC=area*s.meshPrice;const totTons=(sandKg+cemKg)/1000,trips=Math.ceil(totTons/s.truckCap),delC=trips*s.deliveryPrice,liftC=Math.ceil(totTons)*s.liftPrice,labC=area*s.laborPrice;const total=sandC+cemC+fibC+filmC+meshC+delC+liftC+labC,ppm=total/area;currentCalc={m,s,area,layer,total,ppm,sandB,sandC,cemB,cemC,fibKg,fibC,filmC,meshC,totTons,trips,delC,liftC,labC};const box=document.getElementById('costResult');box.style.display='block';box.innerHTML=`<div class="cost-summary"><div class="cost-summary-item"><div class="label">Площадь</div><div class="value">${area.toFixed(2)} м²</div></div><div class="cost-summary-item"><div class="label">Слой</div><div class="value">${layer.toFixed(1)} см</div></div><div class="cost-summary-item"><div class="label">Цена/м²</div><div class="value">${ppm.toFixed(0)} ₽</div></div></div><div class="cost-result"><table class="cost-table"><tr><th>Позиция</th><th>Расчёт</th><th>Сумма</th><tr><tr><td>Песок</td><td>${sandB} меш.</td><td style="text-align:right">${sandC.toLocaleString('ru-RU')} ₽</td></tr><tr><td>Цемент</td><td>${cemB} меш.</td><td style="text-align:right">${cemC.toLocaleString('ru-RU')} ₽</td></tr><tr><td>Фибра</td><td>${fibKg.toFixed(2)} кг</td><td style="text-align:right">${fibC.toFixed(0)} ₽</td></tr><tr><td>Плёнка</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${filmC.toFixed(0)} ₽</td></tr><tr><td>Сетка</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${meshC.toFixed(0)} ₽</td></tr><tr><td>Доставка</td><td>${totTons.toFixed(1)} т → ${trips} рейс.</td><td style="text-align:right">${delC.toLocaleString('ru-RU')} ₽</td></tr><tr><td>Подъём</td><td>${Math.ceil(totTons)} т</td><td style="text-align:right">${liftC.toLocaleString('ru-RU')} ₽</td></tr><tr><td>Работа</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${labC.toLocaleString('ru-RU')} ₽</td></tr><tr class="total-row"><td>ИТОГО</td><td></td><td style="text-align:right">${total.toLocaleString('ru-RU')} ₽</td></tr></table><div class="btn-group"><button class="btn btn-secondary" onclick="showCostList()">← Назад к списку</button><button class="btn" style="background:var(--success)" onclick="showCostPDFModal()">📥 Скачать PDF</button></div></div>`;}
+function calculateCost(id){if(!id)return showToast('⚠️ Выберите замер');const m=getDB().find(x=>x.id===id);if(!m)return;const s=getSettings(),area=m.totalArea,layer=m.avgLayer;const mixKg=area*layer*s.mixDensity,sandKg=mixKg*(s.ratio/(s.ratio+1)),cemKg=mixKg*(1/(s.ratio+1));const sandB=Math.ceil(sandKg/s.sandBagW),cemB=Math.ceil(cemKg/s.cementBagW),sandC=sandB*s.sandPrice,cemC=cemB*s.cementPrice;const fibKg=(area*s.fiberG)/1000,fibC=fibKg*s.fiberPrice,filmC=area*s.filmPrice,meshC=area*s.meshPrice;const totTons=(sandKg+cemKg)/1000,trips=Math.ceil(totTons/s.truckCap),delC=trips*s.deliveryPrice,liftC=Math.ceil(totTons)*s.liftPrice,labC=area*s.laborPrice;const total=sandC+cemC+fibC+filmC+meshC+delC+liftC+labC,ppm=total/area;currentCalc={m,s,area,layer,total,ppm,sandB,sandC,cemB,cemC,fibKg,fibC,filmC,meshC,totTons,trips,delC,liftC,labC};const box=document.getElementById('costResult');box.style.display='block';box.innerHTML=`<div class="cost-summary"><div class="cost-summary-item"><div class="label">Площадь</div><div class="value">${area.toFixed(2)} м²</div></div><div class="cost-summary-item"><div class="label">Слой</div><div class="value">${layer.toFixed(1)} см</div></div><div class="cost-summary-item"><div class="label">Цена/м²</div><div class="value">${ppm.toFixed(0)} ₽</div></div></div><div class="cost-result"><table class="cost-table"><tr><th>Позиция</th><th>Расчёт</th><th>Сумма</th><tr><tr><td>Песок</td><td>${sandB} меш.</td><td style="text-align:right">${sandC.toLocaleString('ru-RU')} ₽</td></tr>
+<tr><td>Цемент</td><td>${cemB} меш.</td><td style="text-align:right">${cemC.toLocaleString('ru-RU')} ₽</td></tr>
+<tr><td>Фибра</td><td>${fibKg.toFixed(2)} кг</td><td style="text-align:right">${fibC.toFixed(0)} ₽</td></tr>
+<tr><td>Плёнка</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${filmC.toFixed(0)} ₽</td></tr>
+<tr><td>Сетка</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${meshC.toFixed(0)} ₽</td></tr>
+<tr><td>Доставка</td><td>${totTons.toFixed(1)} т → ${trips} рейс.</td><td style="text-align:right">${delC.toLocaleString('ru-RU')} ₽</td></tr>
+<tr><td>Подъём</td><td>${Math.ceil(totTons)} т</td><td style="text-align:right">${liftC.toLocaleString('ru-RU')} ₽</td></tr>
+<tr><td>Работа</td><td>${area.toFixed(2)} м²</td><td style="text-align:right">${labC.toLocaleString('ru-RU')} ₽</td></tr>
+<tr class="total-row"><td>ИТОГО</td><td></td><td style="text-align:right">${total.toLocaleString('ru-RU')} ₽</td></tr>
+</table><div class="btn-group"><button class="btn btn-secondary" onclick="showCostList()">← Назад к списку</button><button class="btn" style="background:var(--success)" onclick="showCostPDFModal()">📥 Скачать PDF</button></div></div>`;}
 
 function closeModal(){document.getElementById('pdfModal').classList.remove('show');pdfData.pendingAction=null;}
 
@@ -149,28 +158,7 @@ async function preparePDFData(tplId,contId,baseName,id=null){
   }
 }
 
-async function requestStoragePermission() {
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-        try {
-            const { Permissions } = Capacitor.Plugins;
-            const status = await Permissions.request({ permissions: ['storage'] });
-            if (status.storage === 'granted') {
-                showToast('✅ Разрешение получено');
-                return true;
-            } else {
-                showToast('⚠️ Нет разрешения на сохранение');
-                return false;
-            }
-        } catch(e) {
-            console.log('Permissions error:', e);
-            return true;
-        }
-    }
-    return true;
-}
-
 async function savePDFToDocuments(blob, fileName) {
-    // 1. Пробуем Share (системный диалог) – это самый надёжный способ
     if (navigator.share && navigator.canShare) {
         const file = new File([blob], fileName, { type: 'application/pdf' });
         if (navigator.canShare({ files: [file] })) {
@@ -178,42 +166,21 @@ async function savePDFToDocuments(blob, fileName) {
                 await navigator.share({ files: [file], title: fileName });
                 showToast('📤 PDF отправлен');
                 return true;
-            } catch(e) {
-                console.log('Share cancelled or failed:', e);
-            }
+            } catch(e) { console.log(e); }
         }
     }
-    
-    // 2. Если Share не сработал, сохраняем во внутреннюю папку приложения (Directory.Data)
     if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
         try {
             const { Filesystem, Directory } = Capacitor.Plugins;
             const base64 = await blobToBase64(blob);
-            // Создаём папку ScreedPDF
-            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(() => {});
-            // Записываем файл
-            const result = await Filesystem.writeFile({
-                path: `ScreedPDF/${fileName}`,
-                data: base64,
-                directory: Directory.Data,
-                recursive: true
-            });
-            showToast(`✅ PDF сохранён в папку приложения. Путь: ${result.uri}`);
+            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
+            await Filesystem.writeFile({ path: `ScreedPDF/${fileName}`, data: base64, directory: Directory.Data, recursive: true });
+            showToast(`✅ PDF сохранён в папку приложения`);
             return true;
-        } catch(e) {
-            console.error('Save error:', e);
-            showToast('⚠️ Не удалось сохранить: ' + e.message);
-            return false;
-        }
+        } catch(e) { console.error(e); showToast('⚠️ Ошибка: ' + e.message); return false; }
     }
-    
-    // 3. Последний fallback: скачивание через ссылку (для веб-версии)
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url);
     showToast('✅ PDF скачан');
     return true;
 }
@@ -228,27 +195,16 @@ function blobToBase64(blob) {
 }
 
 async function startPDF(action) {
-    if (!pdfData.blob) {
-        showToast('⚠️ PDF ещё не готов');
-        return;
-    }
-    
-    // Для обоих действий (скачать/отправить) используем Share как основной метод,
-    // так как это самый удобный способ для пользователя.
+    if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
-    
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({ files: [file], title: pdfData.name });
             showToast('📤 PDF отправлен');
             closeModal();
             return;
-        } catch(e) {
-            console.log('Share cancelled or failed:', e);
-        }
+        } catch(e) { console.log(e); }
     }
-    
-    // Если Share не работает, пробуем сохранить через Filesystem
     await savePDFToDocuments(pdfData.blob, pdfData.name);
     closeModal();
 }
