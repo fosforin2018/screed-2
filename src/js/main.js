@@ -170,7 +170,7 @@ async function requestStoragePermission() {
 }
 
 async function savePDFToDocuments(blob, fileName) {
-    // Всегда используем Share, чтобы не возиться с разрешениями и путями
+    // 1. Пробуем Share (системный диалог) – это самый надёжный способ
     if (navigator.share && navigator.canShare) {
         const file = new File([blob], fileName, { type: 'application/pdf' });
         if (navigator.canShare({ files: [file] })) {
@@ -179,16 +179,19 @@ async function savePDFToDocuments(blob, fileName) {
                 showToast('📤 PDF отправлен');
                 return true;
             } catch(e) {
-                console.log('Share failed:', e);
+                console.log('Share cancelled or failed:', e);
             }
         }
     }
-    // Если Share не работает, сохраняем во внутреннее хранилище
+    
+    // 2. Если Share не сработал, сохраняем во внутреннюю папку приложения (Directory.Data)
     if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
         try {
             const { Filesystem, Directory } = Capacitor.Plugins;
             const base64 = await blobToBase64(blob);
+            // Создаём папку ScreedPDF
             await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(() => {});
+            // Записываем файл
             const result = await Filesystem.writeFile({
                 path: `ScreedPDF/${fileName}`,
                 data: base64,
@@ -203,7 +206,8 @@ async function savePDFToDocuments(blob, fileName) {
             return false;
         }
     }
-    // Последний fallback: скачивание через ссылку
+    
+    // 3. Последний fallback: скачивание через ссылку (для веб-версии)
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -229,7 +233,8 @@ async function startPDF(action) {
         return;
     }
     
-    // Для обоих действий (скачать/отправить) используем Share, так как это самый надёжный способ
+    // Для обоих действий (скачать/отправить) используем Share как основной метод,
+    // так как это самый удобный способ для пользователя.
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
     
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
