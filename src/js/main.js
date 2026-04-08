@@ -6,11 +6,27 @@ let corrections = { globalMm: 3, perRoomMm: 0, enabled: true };
 let pdfData = { blob: null, name: '', pendingAction: null };
 
 document.addEventListener('DOMContentLoaded', () => { 
-  loadSettings(); loadTheme();
+  loadSettings(); loadTheme(); requestStoragePermission();
   document.getElementById('measDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('corrToggle').checked = true;
   toggleCorrection(); addRoom(); renderHistory(); filterForCost(); 
 });
+
+async function requestStoragePermission() {
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+        try {
+            const { Permissions } = Capacitor.Plugins;
+            const status = await Permissions.request({ permissions: ['storage'] });
+            if (status.storage === 'granted') {
+                console.log('✅ Разрешение на файлы получено');
+                showToast('✅ Доступ к файлам разрешён');
+            } else {
+                console.log('⚠️ Разрешение не получено');
+                showToast('⚠️ Без доступа к файлам PDF нельзя отправить');
+            }
+        } catch(e) { console.log('Permissions error:', e); }
+    }
+}
 
 function toggleTheme(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');document.getElementById('themeBtn').textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d?'1':'0');}
 function loadTheme(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀️';}else{document.body.classList.remove('dark');document.getElementById('themeBtn').textContent='🌙';}}
@@ -20,7 +36,8 @@ function switchTab(id){document.querySelectorAll('.page').forEach(p=>p.classList
 function addRoom(n='',a='',l=''){roomUid++;rooms.push({id:`r_${Date.now()}_${roomUid}`,name:n||`Комната ${rooms.length+1}`,area:a,layer:l});renderRooms();recalcSummary();}
 function removeRoom(id){if(rooms.length<=1)return showToast('⚠️ Нужна хотя бы одна комната');rooms=rooms.filter(r=>r.id!==id);renderRooms();recalcSummary();}
 function updateRoom(id,f,v){const r=rooms.find(x=>x.id===id);if(r){r[f]=v;const el=document.getElementById(`res-${id}`);if(el){const a=parseFloat(r.area)||0,l=getEff(parseFloat(r.layer)||0);el.textContent=(a>0&&l>0)?`Итог: ${a} × ${l} = ${(a*l).toFixed(2)}`:'';}recalcSummary();}}
-function renderRooms(){const c=document.getElementById('roomsContainer');c.innerHTML=rooms.map((r,i)=>{const a=parseFloat(r.area)||0,l=getEff(parseFloat(r.layer)||0);const res=(a>0&&l>0)?`Итог: ${a} × ${l} = ${(a*l).toFixed(2)}`:'';return `<div class="room-card"><div class="room-header"><span class="room-number">${i+1}</span><button class="btn-remove" onclick="removeRoom('${r.id}')">✕</button></div><div class="room-fields"><div class="field-group"><label>Название</label><input type="text" value="${r.name}" oninput="updateRoom('${r.id}','name',this.value)"></div><div class="field-group"><label>Площадь (м²)</label><input type="number" step="0.01" min="0" value="${r.area}" oninput="updateRoom('${r.id}','area',this.value)"></div><div class="field-group"><label>Слой (см)</label><input type="number" step="0.1" min="0" value="${r.layer}" oninput="updateRoom('${r.id}','layer',this.value)"></div></div><div class="room-result" id="res-${r.id}">${res}</div></div>`;}).join('');}
+function renderRooms(){const c=document.getElementById('roomsContainer');c.innerHTML=rooms.map((r,i)=>{const a=parseFloat(r.area)||0,l=getEff(parseFloat(r.layer)||0);const res=(a>0&&l>0)?`Итог: ${a} × ${l} = ${(a*l).toFixed(2)}`:'';return `<div class="room-card"><div class="room-header"><span class="room-number">${i+1}</span><button class="btn-remove" onclick="removeRoom('${r.id}')">✕</button></div><div class="room-fields"><div class="field-group"><label>Название</label><input type="text" value="${r.name}" oninput="updateRoom('${r.id}','name',this.value)"></div><div class="field-group"><label>Площадь (м²)</label><input type="text" value="${r.area}" oninput="handleAreaInput('${r.id}', this.value)"></div><div class="field-group"><label>Слой (см)</label><input type="number" step="0.1" min="0" value="${r.layer}" oninput="updateRoom('${r.id}','layer',this.value)"></div></div><div class="room-result" id="res-${r.id}">${res}</div></div>`;}).join('');}
+function handleAreaInput(id, val) { updateRoom(id, 'area', val); recalcSummary(); }
 function toggleCorrection(){corrections.enabled=document.getElementById('corrToggle').checked;document.querySelectorAll('.correction-grid input').forEach(i=>i.disabled=!corrections.enabled);recalcSummary();}
 function applyCorrections(){corrections.globalMm=parseFloat(document.getElementById('corrGlobalMm').value)||0;corrections.perRoomMm=parseFloat(document.getElementById('corrPerRoomMm').value)||0;recalcSummary();}
 function getEff(baseCm,corr){const c=corr||corrections;if(!c.enabled)return baseCm;return baseCm+(c.globalMm/10)+(c.perRoomMm/10);}
@@ -128,53 +145,54 @@ async function preparePDFData(tplId,contId,baseName,id=null){
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
     
-    // Запрашиваем разрешение (только если нужно для Documents, но для Data не обязательно)
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-        try {
-            const { Permissions } = Capacitor.Plugins;
-            await Permissions.request({ permissions: ['storage'] }).catch(()=>{});
-        } catch(e) {}
-    }
-    
-    // Пытаемся сохранить через Filesystem во внутреннюю папку приложения (Directory.Data)
-    let saved = false;
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
-        try {
-            const { Filesystem, Directory } = Capacitor.Plugins;
-            const base64 = await blobToBase64(pdfData.blob);
-            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
-            await Filesystem.writeFile({
-                path: `ScreedPDF/${pdfData.name}`,
-                data: base64,
-                directory: Directory.Data,
-                recursive: true
-            });
-            showToast('✅ PDF сохранён во внутреннее хранилище');
-            saved = true;
-        } catch(e) {
-            console.error('Filesystem error:', e);
-            showToast('⚠️ Не удалось сохранить: ' + e.message);
-        }
-    }
-    
-    // В любом случае открываем системный диалог "Поделиться"
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
+    
+    // 1. Пробуем системный диалог "Поделиться" (отправка в Telegram, WhatsApp и т.д.)
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({ files: [file], title: pdfData.name });
             showToast('📤 PDF отправлен');
+            closeModal();
+            return;
         } catch(e) { console.log('Share cancelled:', e); }
-    } else {
-        const url = URL.createObjectURL(pdfData.blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = pdfData.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('✅ PDF скачан');
     }
+    
+    // 2. Если Share не работает, сохраняем через Filesystem во временную папку и открываем диалог отправки
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
+        try {
+            const { Filesystem, Directory } = Capacitor.Plugins;
+            const base64 = await blobToBase64(pdfData.blob);
+            const fileName = `ScreedPDF_${Date.now()}.pdf`;
+            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Cache, recursive: true }).catch(()=>{});
+            await Filesystem.writeFile({
+                path: `ScreedPDF/${fileName}`,
+                data: base64,
+                directory: Directory.Cache,
+                recursive: true
+            });
+            // Пытаемся открыть системный просмотрщик PDF (через Intent)
+            const { Share } = Capacitor.Plugins;
+            await Share.share({
+                title: pdfData.name,
+                text: 'Документ из Стяжка Pro',
+                url: `file://${Filesystem.getUri({ path: `ScreedPDF/${fileName}`, directory: Directory.Cache })}`
+            });
+            showToast('📤 PDF отправлен');
+            closeModal();
+            return;
+        } catch(e) { console.error('Filesystem share error:', e); }
+    }
+    
+    // 3. Последний fallback: просто скачиваем через ссылку (без отправки)
+    const url = URL.createObjectURL(pdfData.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = pdfData.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✅ PDF скачан');
     closeModal();
 }
 
