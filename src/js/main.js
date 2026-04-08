@@ -39,8 +39,7 @@ window.calcFromArchive = function(id){switchTab('pageCost');document.getElementB
 function showCostList(){document.getElementById('costSearchBlock').style.display='block';document.getElementById('costList').style.display='block';document.getElementById('costResult').style.display='none';document.getElementById('searchCost').value='';filterForCost();}
 function filterForCost(){const q=document.getElementById('searchCost').value.toLowerCase();const db=getDB().filter(m=>(m.address||'').toLowerCase().includes(q)||(m.client||'').toLowerCase().includes(q)||(m.date||'').includes(q));const cont=document.getElementById('costList');if(q.length>0&&db.length===0){cont.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-secondary)">Ничего не найдено</div>';return;}cont.innerHTML=db.map(m=>`<div class="cost-item" id="ci-${m.id}" onclick="calcFromArchive('${m.id}')"><div style="font-weight:600">📍 ${m.address}</div><div style="font-size:12px;color:var(--text-secondary)">👤 ${m.client||'—'} • 📅 ${m.date||'—'} • ${m.totalArea.toFixed(1)} м²</div></div>`).join('');}
 
-function calculateCost(id){if(!id)return showToast('⚠️ Выберите замер');const m=getDB().find(x=>x.id===id);if(!m)return;const s=getSettings(),area=m.totalArea,layer=m.avgLayer;const mixKg=area*layer*s.mixDensity,sandKg=mixKg*(s.ratio/(s.ratio+1)),cemKg=mixKg*(1/(s.ratio+1));const sandB=Math.ceil(sandKg/s.sandBagW),cemB=Math.ceil(cemKg/s.cementBagW),sandC=sandB*s.sandPrice,cemC=cemB*s.cementPrice;const fibKg=(area*s.fiberG)/1000,fibC=fibKg*s.fiberPrice,filmC=area*s.filmPrice,meshC=area*s.meshPrice;const totTons=(sandKg+cemKg)/1000,trips=Math.ceil(totTons/s.truckCap),delC=trips*s.deliveryPrice,liftC=Math.ceil(totTons)*s.liftPrice,labC=area*s.laborPrice;const total=sandC+cemC+fibC+filmC+meshC+delC+liftC+labC,ppm=total/area;currentCalc={m,s,area,layer,total,ppm,sandB,sandC,cemB,cemC,fibKg,fibC,filmC,meshC,totTons,trips,delC,liftC,labC};const box=document.getElementById('costResult');box.style.display='block';box.innerHTML=`<div class="cost-summary"><div class="cost-summary-item"><div class="label">Площадь</div><div class="value">${area.toFixed(2)} м²</div></div><div class="cost-summary-item"><div class="label">Слой</div><div class="value">${layer.toFixed(1)} см</div></div><div class="cost-summary-item"><div class="label">Цена/м²</div><div class="value">${ppm.toFixed(0)} ₽</div></div></div><div class="cost-result"><table class="cost-table"><tr><th>Позиция</th><th>Расчёт</th><th>Сумма</th><tr><tr><td>Песок</td><td>${sandB} меш.</td><td style="text-align:right">${sandC.toLocaleString('ru-RU')} ₽</td></tr>
-<tr class="total-row"><td colspan="2">ИТОГО</td><td style="text-align:right">${total.toLocaleString('ru-RU')} ₽</td></tr></table><div class="btn-group"><button class="btn btn-secondary" onclick="showCostList()">← Назад к списку</button><button class="btn" style="background:var(--success)" onclick="showCostPDFModal()">📥 Скачать PDF</button></div></div>`;}
+function calculateCost(id){if(!id)return showToast('⚠️ Выберите замер');const m=getDB().find(x=>x.id===id);if(!m)return;const s=getSettings(),area=m.totalArea,layer=m.avgLayer;const mixKg=area*layer*s.mixDensity,sandKg=mixKg*(s.ratio/(s.ratio+1)),cemKg=mixKg*(1/(s.ratio+1));const sandB=Math.ceil(sandKg/s.sandBagW),cemB=Math.ceil(cemKg/s.cementBagW),sandC=sandB*s.sandPrice,cemC=cemB*s.cementPrice;const fibKg=(area*s.fiberG)/1000,fibC=fibKg*s.fiberPrice,filmC=area*s.filmPrice,meshC=area*s.meshPrice;const totTons=(sandKg+cemKg)/1000,trips=Math.ceil(totTons/s.truckCap),delC=trips*s.deliveryPrice,liftC=Math.ceil(totTons)*s.liftPrice,labC=area*s.laborPrice;const total=sandC+cemC+fibC+filmC+meshC+delC+liftC+labC,ppm=total/area;currentCalc={m,s,area,layer,total,ppm,sandB,sandC,cemB,cemC,fibKg,fibC,filmC,meshC,totTons,trips,delC,liftC,labC};const box=document.getElementById('costResult');box.style.display='block';box.innerHTML=`<div class="cost-summary"><div class="cost-summary-item"><div class="label">Площадь</div><div class="value">${area.toFixed(2)} м²</div></div><div class="cost-summary-item"><div class="label">Слой</div><div class="value">${layer.toFixed(1)} см</div></div><div class="cost-summary-item"><div class="label">Цена/м²</div><div class="value">${ppm.toFixed(0)} ₽</div></div></div><div class="cost-result"><table class="cost-table"><tr><th>Позиция</th><th>Расчёт</th><th>Сумма</th><tr><td>Песок</td><td style="text-align:right">${sandB} меш. / ${sandC.toLocaleString('ru-RU')} ₽</tr><tr><td colspan="2" style="text-align:right; font-weight:bold; padding-top:10px;">ИТОГО: ${total.toLocaleString('ru-RU')} ₽</tr></table><div class="btn-group"><button class="btn btn-secondary" onclick="showCostList()">← Назад к списку</button><button class="btn" style="background:var(--success)" onclick="showCostPDFModal()">📥 Скачать PDF</button></div></div>`;}
 
 function closeModal(){document.getElementById('pdfModal').classList.remove('show');pdfData.pendingAction=null;}
 
@@ -66,17 +65,17 @@ async function preparePDFData(tplId,contId,baseName,id=null){
      const docNum = 'КП-' + Math.floor(1000 + Math.random()*9000);
      document.getElementById('pdfCostNum').textContent = docNum;
      document.getElementById('pdfCostDate').textContent = new Date().toLocaleDateString('ru-RU');
-     document.getElementById('pdfCostStrip').innerHTML = `<div class="pdf-info-strip-item"><div class="l">Объект</div><div class="v">${m.address}</div></div><div class="pdf-info-strip-item"><div class="l">Площадь</div><div class="v">${area.toFixed(1)} м²</div></div><div class="pdf-info-strip-item"><div class="l">Слой</div><div class="v">${layer.toFixed(1)} см</div></div><div class="pdf-info-strip-item"><div class="l">За м²</div><div class="v">${ppm.toFixed(0)} ₽</div></div>`;
+     document.getElementById('pdfCostStrip').innerHTML = `<div><b>Объект:</b> ${m.address}</div><div><b>Площадь:</b> ${area.toFixed(1)} м²</div><div><b>Слой:</b> ${layer.toFixed(1)} см</div><div><b>Цена за м²:</b> ${ppm.toFixed(0)} ₽</div>`;
      const totalMixKg = area * layer * s.mixDensity;
      document.getElementById('pdfCostRows').innerHTML = `
-        <tr><td>Песок</td><td>${sandB} меш. (${(sandB*s.sandBagW)} кг)</td><td>${s.sandPrice} ₽</td><td style="text-align:right">${sandC.toLocaleString()} ₽</td></tr>
-        <tr><td>Цемент</td><td>${cemB} меш. (${(cemB*s.cementBagW)} кг)</td><td>${s.cementPrice} ₽</td><td style="text-align:right">${cemC.toLocaleString()} ₽</td></tr>
-        <tr><td>Фиброволокно</td><td>${fibKg.toFixed(1)} кг</td><td>${s.fiberPrice} ₽</td><td style="text-align:right">${fibC.toFixed(0)} ₽</td></tr>
-        <tr><td>Плёнка</td><td>${area.toFixed(1)} м²</td><td>${s.filmPrice} ₽</td><td style="text-align:right">${filmC.toFixed(0)} ₽</td></tr>
-        <tr><td>Армирующая сетка</td><td>${area.toFixed(1)} м²</td><td>${s.meshPrice} ₽</td><td style="text-align:right">${meshC.toFixed(0)} ₽</td></tr>
-        <tr><td>Доставка</td><td>${trips} рейс. (${(totalMixKg/1000).toFixed(1)} т)</td><td>${s.deliveryPrice} ₽</td><td style="text-align:right">${delC.toLocaleString()} ₽</td></tr>
-        <tr><td>Подъём материалов</td><td>${Math.ceil(totalMixKg/1000)} т</td><td>${s.liftPrice} ₽</td><td style="text-align:right">${liftC.toLocaleString()} ₽</td></tr>
-        <tr style="font-weight:600"><td>Работа (стяжка)</td><td>${area.toFixed(1)} м²</td><td>${s.laborPrice} ₽/м²</td><td style="text-align:right">${labC.toLocaleString()} ₽</td></tr>`;
+         <tr><td>Песок</td><td>${sandB} меш. (${(sandB*s.sandBagW)} кг)</td><td>${s.sandPrice} ₽</td><td>${sandC.toLocaleString()} ₽</td></tr>
+         <tr><td>Цемент</td><td>${cemB} меш. (${(cemB*s.cementBagW)} кг)</td><td>${s.cementPrice} ₽</td><td>${cemC.toLocaleString()} ₽</td></tr>
+         <tr><td>Фиброволокно</td><td>${fibKg.toFixed(1)} кг</td><td>${s.fiberPrice} ₽</td><td>${fibC.toFixed(0)} ₽</td></tr>
+         <tr><td>Плёнка</td><td>${area.toFixed(1)} м²</td><td>${s.filmPrice} ₽</td><td>${filmC.toFixed(0)} ₽</td></tr>
+         <tr><td>Армирующая сетка</td><td>${area.toFixed(1)} м²</td><td>${s.meshPrice} ₽</td><td>${meshC.toFixed(0)} ₽</td></tr>
+         <tr><td>Доставка</td><td>${trips} рейс. (${(totalMixKg/1000).toFixed(1)} т)</td><td>${s.deliveryPrice} ₽</td><td>${delC.toLocaleString()} ₽</td></tr>
+         <tr><td>Подъём материалов</td><td>${Math.ceil(totalMixKg/1000)} т</td><td>${s.liftPrice} ₽</td><td>${liftC.toLocaleString()} ₽</td></tr>
+         <tr style="font-weight:600"><td>Работа (стяжка)</td><td>${area.toFixed(1)} м²</td><td>${s.laborPrice} ₽/м²</td><td>${labC.toLocaleString()} ₽</td></tr>`;
      document.getElementById('pdfCostTotal').textContent = total.toLocaleString('ru-RU') + ' ₽';
      document.getElementById('pdfCostGenDate').textContent = new Date().toLocaleString('ru-RU');
   }
@@ -90,7 +89,7 @@ async function preparePDFData(tplId,contId,baseName,id=null){
      const c=m.corrections||{globalMm:0,perRoomMm:0,enabled:false};
      const cBlock=document.getElementById('pdfMeasCorrection'),cText=document.getElementById('pdfMeasCorrText');
      if(c.enabled&&(c.globalMm!==0||c.perRoomMm!==0)){cBlock.style.display='block';let t='';if(c.globalMm!==0)t+=`Общая поправка: ${c.globalMm>0?'+':''}${c.globalMm} мм. `;if(c.perRoomMm!==0)t+=`К каждой комнате: ${c.perRoomMm>0?'+':''}${c.perRoomMm} мм.`;cText.textContent=t;}else{cBlock.style.display='none';}
-     const tb=document.getElementById('pdfMeasRows');tb.innerHTML='';let idx=0;m.rooms.forEach(r=>{const a=parseFloat(r.area)||0,base=parseFloat(r.layer)||0,eff=getEff(base,c);const res=a*eff;idx+=res;if(a>0)tb.innerHTML+=`<tr><td>${r.name}</td><td style="text-align:right">${a.toFixed(2)}</td><td style="text-align:right">${eff.toFixed(1)}</td><td style="text-align:right">${res.toFixed(2)}</td></tr>`;});
+     const tb=document.getElementById('pdfMeasRows');tb.innerHTML='';let idx=0;m.rooms.forEach(r=>{const a=parseFloat(r.area)||0,base=parseFloat(r.layer)||0,eff=getEff(base,c);const res=a*eff;idx+=res;if(a>0)tb.innerHTML+=`<tr><td>${r.name}</td><td>${a.toFixed(2)}</td><td>${eff.toFixed(1)}</td><td>${res.toFixed(2)}</td></tr>`;});
      document.getElementById('pdfMeasIndex').textContent=idx.toFixed(2);
      document.getElementById('pdfMeasGenDate').textContent=new Date().toLocaleString('ru-RU');
      const logoArea = document.getElementById('pdfLogoArea');
@@ -126,74 +125,32 @@ async function preparePDFData(tplId,contId,baseName,id=null){
   }
 }
 
-// ========== ГЛАВНАЯ ФУНКЦИЯ С СОХРАНЕНИЕМ И ОТПРАВКОЙ ==========
+// ========== ПРОСТОЙ И НАДЁЖНЫЙ СПОСОБ ОТПРАВКИ ==========
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
     
-    // Сохраняем файл во внутреннее хранилище приложения через Capacitor Filesystem
-    let savedFileUri = null;
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
-        try {
-            const { Filesystem, Directory } = Capacitor.Plugins;
-            const base64 = await blobToBase64(pdfData.blob);
-            const fileName = pdfData.name;
-            // Создаём папку ScreedPDF
-            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
-            // Сохраняем файл
-            const result = await Filesystem.writeFile({
-                path: `ScreedPDF/${fileName}`,
-                data: base64,
-                directory: Directory.Data,
-                recursive: true
-            });
-            savedFileUri = result.uri;
-            showToast('✅ PDF сохранён');
-        } catch(e) {
-            console.error('Filesystem save error:', e);
-            showToast('⚠️ Ошибка сохранения: ' + e.message);
-        }
-    }
-    
-    // Если файл сохранён, открываем системный диалог отправки через Capacitor Share
-    if (savedFileUri && Capacitor.Plugins.Share) {
-        try {
-            const { Share } = Capacitor.Plugins;
-            await Share.share({
-                title: pdfData.name,
-                text: 'Документ из приложения "Стяжка Pro"',
-                url: savedFileUri,  // передаём URI сохранённого файла
-                dialogTitle: 'Отправить PDF'
-            });
-            showToast('📤 Диалог отправки открыт');
-            closeModal();
-            return;
-        } catch(e) {
-            console.error('Share error:', e);
-            showToast('⚠️ Не удалось открыть диалог отправки');
-        }
-    }
-    
-    // Fallback: если Share не сработал, пытаемся через браузерный navigator.share
-    const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-            await navigator.share({ files: [file], title: pdfData.name });
-            showToast('📤 PDF отправлен');
-            closeModal();
-            return;
-        } catch(e) { console.log('Share cancelled:', e); }
-    }
-    
-    // Последний fallback: просто скачиваем через ссылку
+    // Создаём URL для Blob
     const url = URL.createObjectURL(pdfData.blob);
+    
+    // Пробуем открыть системный диалог "Отправить" через Intent (работает на Android)
+    // Для этого создаём невидимую ссылку с атрибутом target="_system"
     const a = document.createElement('a');
     a.href = url;
     a.download = pdfData.name;
+    a.target = '_system';
+    a.rel = 'noopener noreferrer';
+    
+    // Добавляем в документ, имитируем клик, затем удаляем
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('✅ PDF скачан');
+    
+    // Небольшая задержка перед очисткой URL
+    setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 100);
+    
+    showToast('📤 PDF открыт. Выберите приложение для отправки или сохранения');
     closeModal();
 }
 
