@@ -6,27 +6,11 @@ let corrections = { globalMm: 3, perRoomMm: 0, enabled: true };
 let pdfData = { blob: null, name: '', pendingAction: null };
 
 document.addEventListener('DOMContentLoaded', () => { 
-  loadSettings(); loadTheme(); requestStoragePermission();
+  loadSettings(); loadTheme();
   document.getElementById('measDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('corrToggle').checked = true;
   toggleCorrection(); addRoom(); renderHistory(); filterForCost(); 
 });
-
-async function requestStoragePermission() {
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
-        try {
-            const { Permissions } = Capacitor.Plugins;
-            const status = await Permissions.request({ permissions: ['storage'] });
-            if (status.storage === 'granted') {
-                console.log('✅ Разрешение на файлы получено');
-                showToast('✅ Доступ к файлам разрешён');
-            } else {
-                console.log('⚠️ Разрешение не получено');
-                showToast('⚠️ Без доступа к файлам PDF нельзя отправить');
-            }
-        } catch(e) { console.log('Permissions error:', e); }
-    }
-}
 
 function toggleTheme(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');document.getElementById('themeBtn').textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d?'1':'0');}
 function loadTheme(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀️';}else{document.body.classList.remove('dark');document.getElementById('themeBtn').textContent='🌙';}}
@@ -142,12 +126,55 @@ async function preparePDFData(tplId,contId,baseName,id=null){
   }
 }
 
+// ========== ГЛАВНАЯ ФУНКЦИЯ С СОХРАНЕНИЕМ И ОТПРАВКОЙ ==========
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
     
-    const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
+    // Сохраняем файл во внутреннее хранилище приложения через Capacitor Filesystem
+    let savedFileUri = null;
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
+        try {
+            const { Filesystem, Directory } = Capacitor.Plugins;
+            const base64 = await blobToBase64(pdfData.blob);
+            const fileName = pdfData.name;
+            // Создаём папку ScreedPDF
+            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
+            // Сохраняем файл
+            const result = await Filesystem.writeFile({
+                path: `ScreedPDF/${fileName}`,
+                data: base64,
+                directory: Directory.Data,
+                recursive: true
+            });
+            savedFileUri = result.uri;
+            showToast('✅ PDF сохранён');
+        } catch(e) {
+            console.error('Filesystem save error:', e);
+            showToast('⚠️ Ошибка сохранения: ' + e.message);
+        }
+    }
     
-    // 1. Пробуем системный диалог "Поделиться" (отправка в Telegram, WhatsApp и т.д.)
+    // Если файл сохранён, открываем системный диалог отправки через Capacitor Share
+    if (savedFileUri && Capacitor.Plugins.Share) {
+        try {
+            const { Share } = Capacitor.Plugins;
+            await Share.share({
+                title: pdfData.name,
+                text: 'Документ из приложения "Стяжка Pro"',
+                url: savedFileUri,  // передаём URI сохранённого файла
+                dialogTitle: 'Отправить PDF'
+            });
+            showToast('📤 Диалог отправки открыт');
+            closeModal();
+            return;
+        } catch(e) {
+            console.error('Share error:', e);
+            showToast('⚠️ Не удалось открыть диалог отправки');
+        }
+    }
+    
+    // Fallback: если Share не сработал, пытаемся через браузерный navigator.share
+    const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({ files: [file], title: pdfData.name });
@@ -157,33 +184,7 @@ async function startPDF(action) {
         } catch(e) { console.log('Share cancelled:', e); }
     }
     
-    // 2. Если Share не работает, сохраняем через Filesystem во временную папку и открываем диалог отправки
-    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
-        try {
-            const { Filesystem, Directory } = Capacitor.Plugins;
-            const base64 = await blobToBase64(pdfData.blob);
-            const fileName = `ScreedPDF_${Date.now()}.pdf`;
-            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Cache, recursive: true }).catch(()=>{});
-            await Filesystem.writeFile({
-                path: `ScreedPDF/${fileName}`,
-                data: base64,
-                directory: Directory.Cache,
-                recursive: true
-            });
-            // Пытаемся открыть системный просмотрщик PDF (через Intent)
-            const { Share } = Capacitor.Plugins;
-            await Share.share({
-                title: pdfData.name,
-                text: 'Документ из Стяжка Pro',
-                url: `file://${Filesystem.getUri({ path: `ScreedPDF/${fileName}`, directory: Directory.Cache })}`
-            });
-            showToast('📤 PDF отправлен');
-            closeModal();
-            return;
-        } catch(e) { console.error('Filesystem share error:', e); }
-    }
-    
-    // 3. Последний fallback: просто скачиваем через ссылку (без отправки)
+    // Последний fallback: просто скачиваем через ссылку
     const url = URL.createObjectURL(pdfData.blob);
     const a = document.createElement('a');
     a.href = url;
