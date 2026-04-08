@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function toggleTheme(){document.body.classList.toggle('dark');const d=document.body.classList.contains('dark');document.getElementById('themeBtn').textContent=d?'☀️':'🌙';localStorage.setItem('darkMode',d?'1':'0');}
 function loadTheme(){if(localStorage.getItem('darkMode')==='1'){document.body.classList.add('dark');document.getElementById('themeBtn').textContent='☀️';}else{document.body.classList.remove('dark');document.getElementById('themeBtn').textContent='🌙';}}
 
-function switchTab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');const m={pageMeasurements:0,pageCost:1,pageHistory:2,pageSettings:3,pageFiles:4};if(m[id]!==undefined)document.querySelectorAll('.nav-btn')[m[id]].classList.add('active');if(id==='pageHistory')renderHistory();if(id==='pageCost')showCostList();if(id==='pageFiles')renderFilesList();}
+function switchTab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');const m={pageMeasurements:0,pageCost:1,pageHistory:2,pageSettings:3};if(m[id]!==undefined)document.querySelectorAll('.nav-btn')[m[id]].classList.add('active');if(id==='pageHistory')renderHistory();if(id==='pageCost')showCostList();}
 
 function addRoom(n='',a='',l=''){roomUid++;rooms.push({id:`r_${Date.now()}_${roomUid}`,name:n||`Комната ${rooms.length+1}`,area:a,layer:l});renderRooms();recalcSummary();}
 function removeRoom(id){if(rooms.length<=1)return showToast('⚠️ Нужна хотя бы одна комната');rooms=rooms.filter(r=>r.id!==id);renderRooms();recalcSummary();}
@@ -127,31 +127,64 @@ async function preparePDFData(tplId,contId,baseName,id=null){
 
 async function startPDF(action) {
     if (!pdfData.blob) { showToast('⚠️ PDF ещё не готов'); return; }
+    
+    // Запрашиваем разрешение (только если нужно для Documents, но для Data не обязательно)
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+        try {
+            const { Permissions } = Capacitor.Plugins;
+            await Permissions.request({ permissions: ['storage'] }).catch(()=>{});
+        } catch(e) {}
+    }
+    
+    // Пытаемся сохранить через Filesystem во внутреннюю папку приложения (Directory.Data)
+    let saved = false;
+    if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins.Filesystem) {
+        try {
+            const { Filesystem, Directory } = Capacitor.Plugins;
+            const base64 = await blobToBase64(pdfData.blob);
+            await Filesystem.mkdir({ path: 'ScreedPDF', directory: Directory.Data, recursive: true }).catch(()=>{});
+            await Filesystem.writeFile({
+                path: `ScreedPDF/${pdfData.name}`,
+                data: base64,
+                directory: Directory.Data,
+                recursive: true
+            });
+            showToast('✅ PDF сохранён во внутреннее хранилище');
+            saved = true;
+        } catch(e) {
+            console.error('Filesystem error:', e);
+            showToast('⚠️ Не удалось сохранить: ' + e.message);
+        }
+    }
+    
+    // В любом случае открываем системный диалог "Поделиться"
     const file = new File([pdfData.blob], pdfData.name, { type: 'application/pdf' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
             await navigator.share({ files: [file], title: pdfData.name });
             showToast('📤 PDF отправлен');
-            closeModal();
-            return;
         } catch(e) { console.log('Share cancelled:', e); }
+    } else {
+        const url = URL.createObjectURL(pdfData.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pdfData.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('✅ PDF скачан');
     }
-    const url = URL.createObjectURL(pdfData.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = pdfData.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('✅ PDF скачан');
     closeModal();
 }
 
-// Функция для вкладки "Файлы" (если нужна, но можно оставить заглушку)
-async function renderFilesList() {
-    const container = document.getElementById('filesList');
-    if (container) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📁</div><p>Функция временно недоступна</p></div>';
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 }
 
 function getSettings(){const g=id=>parseFloat(document.getElementById(id).value)||0;const t=id=>document.getElementById(id)?.value||'';return{sandBagW:g('sandBagW'),sandPrice:g('sandPrice'),cementBagW:g('cementBagW'),cementPrice:g('cementPrice'),ratio:g('ratio')||3,mixDensity:g('mixDensity')||20,truckCap:g('truckCap')||5,deliveryPrice:g('deliveryPrice')||4000,liftPrice:g('liftPrice')||800,fiberG:g('fiberG')||50,fiberPrice:g('fiberPrice')||450,filmPrice:g('filmPrice')||25,meshPrice:g('meshPrice')||80,laborPrice:g('laborPrice')||450,logoUrl:t('logoUrl'),masterName:t('masterName')};}
@@ -185,4 +218,3 @@ window.exportData = exportData;
 window.importData = importData;
 window.clearAllData = clearAllData;
 window.showToast = showToast;
-window.renderFilesList = renderFilesList;
